@@ -1,10 +1,12 @@
 /* -*-mode:java; c-basic-offset:2; indent-tabs-mode:nil -*- */
 /**
  * This program will demonstrate SSH through jump hosts.
+ * Suppose that you don't have direct accesses to host2 and host3.
  *   $ CLASSPATH=.:../build javac JumpHosts.java
  *   $ CLASSPATH=.:../build java JumpHosts usr1@host1 usr2@host2 usr3@host3
  * You will be asked passwords for those destinations,
- * and if everything works fine, you will get the shell prompt on host3.
+ * and if everything works fine, you will get file lists of your home-directory
+ * at host3.
  *
  */
 import com.jcraft.jsch.*;
@@ -23,48 +25,50 @@ public class JumpHosts {
       }
 
       Session session = null;
-      for(int i = 0; i< arg.length-1; i++){
-        String host = arg[i];
-        String user = host.substring(0, host.indexOf('@'));
+      Session[] sessions = new Session[arg.length];
+
+      String host = arg[0];
+      String user = host.substring(0, host.indexOf('@'));
+      host = host.substring(host.indexOf('@')+1);
+
+      sessions[0] = session = jsch.getSession(user, host, 22);
+      session.setUserInfo(new MyUserInfo());
+      session.connect();
+      System.out.println("The session has been established to "+user+"@"+host);
+
+      for(int i = 1; i < arg.length; i++){
+        host = arg[i];
+        user = host.substring(0, host.indexOf('@'));
         host = host.substring(host.indexOf('@')+1);
-        if(session == null){
-          session = jsch.getSession(user, host, 22);
-          session.setUserInfo(new MyUserInfo());
-          session.connect();
-        }
-        else {
-          int assinged_port = 
-            session.setPortForwardingL(0, host, 22);
-          System.out.println("portforwarding: "+
-                             "127.0.0.1:"+assinged_port+" -> "+host+":"+22);
-          session = jsch.getSession(user, "127.0.0.1", assinged_port);
-          session.setUserInfo(new MyUserInfo());
-          session.setHostKeyAlias(host);
-          session.connect();
-        }
+
+        int assinged_port = session.setPortForwardingL(0, host, 22);
+        System.out.println("portforwarding: "+
+                           "localhost:"+assinged_port+" -> "+host+":"+22);
+        sessions[i] = session =
+          jsch.getSession(user, "127.0.0.1", assinged_port);
+
+        session.setUserInfo(new MyUserInfo());
+        session.setHostKeyAlias(host);
+        session.connect();
         System.out.println("The session has been established to "+
                            user+"@"+host);
       }
 
-      String host = arg[arg.length-1];
-      String user = host.substring(0, host.indexOf('@'));
-      host = host.substring(host.indexOf('@')+1);
+      ChannelSftp sftp = (ChannelSftp)session.openChannel("sftp");
 
-      int assinged_port = 
-        session.setPortForwardingL(0, host, 22);
-      System.out.println("portforwarding: "+
-                         "127.0.0.1:"+assinged_port+" -> "+host+":"+22);
-      session = jsch.getSession(user, "127.0.0.1", assinged_port);
-      session.setUserInfo(new MyUserInfo());
-      session.setHostKeyAlias(host);
-      session.connect();
-      System.out.println("The session has been established to "+user+"@"+host);
+      sftp.connect();
+      sftp.ls(".",
+              new ChannelSftp.LsEntrySelector() {
+                public int select(ChannelSftp.LsEntry le) {
+                  System.out.println(le);
+                  return ChannelSftp.LsEntrySelector.CONTINUE;
+                }
+              });
+      sftp.disconnect();
 
-      Channel channel=session.openChannel("shell");
-
-      channel.setInputStream(System.in);
-      channel.setOutputStream(System.out);
-      channel.connect(3*1000);
+      for(int i = sessions.length-1; i >= 0; i--){
+        sessions[i].disconnect();
+      }
     }
     catch(Exception e){
       System.out.println(e);
