@@ -11,7 +11,7 @@ public class AES{
   public static void main(String[] arg){
 
     try{
-      JSch jsch=new JSch();
+      JSch jsch = new JSch();
 
       //jsch.setKnownHosts("/home/foo/.ssh/known_hosts");
 
