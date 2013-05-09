@@ -177,5 +177,5 @@ or
 - JumpHosts.java
   This program will demonstrate SSH through jump hosts.
 
-- ScpToNoneCipher.java
-  This program will demonstrate how to enable none cipher.
+- OpenSSHConfig.java
+  This program will demonstrate how OpenSSH's config is supported.
